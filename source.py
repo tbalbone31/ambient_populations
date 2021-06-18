@@ -105,16 +105,22 @@ def import_data(datadir):
                 count_col = "Count" if "Count" in df.columns else "InCount"  # Two options
                 hour_col = "Hour"
                 loc_col = "Location" if "Location" in df.columns else "LocationName"
+                BRCYear_col = "BRCYear" if "BRCYear" in df.columns else "Year"
+                BRCMonth_col = "BRCMonthName" if "BRCMonthName" in df.columns else "Month"
+                BRCWeek_col = "BRCWeekNum" if "BRCWeekNum" in df.columns else "WeekNum" if "WeekNum" in df.columns else "BRCWeek"
 
                 if False in [date_col in df.columns, count_col in df.columns, hour_col in df.columns,
-                             loc_col in df.columns]:
-                    raise Exception("File '{}' is missing a column. Date? {}, Count? {}, Hour? {}, Location? {}".
+                             loc_col in df.columns, BRCYear_col in df.columns, BRCMonth_col in df.columns,
+                             BRCWeek_col in df.columns]:
+                    raise Exception("File '{}' is missing a column. Date? {}, Count? {}, Hour? {}, Location? {}, "
+                                    "BRCYear? {}, BRCMonthName? {}, BRCWeekNum? {}".
                                     format(filename, date_col in df.columns, count_col in df.columns,
-                                           hour_col in df.columns, loc_col in df.columns))
+                                           hour_col in df.columns, loc_col in df.columns, BRCYear_col in df.columns,
+                                           BRCMonth_col in df.columns, BRCWeek_col in df.columns))
 
                 # Check if any of the columns have nans
                 bad_cols = []
-                for x in [date_col, count_col, hour_col, loc_col]:
+                for x in [date_col, count_col, hour_col, loc_col, BRCYear_col, BRCMonth_col, BRCWeek_col]:
                     if True in df[x].isnull().values:
                         bad_cols.append(x)
                 if len(bad_cols) > 0:
@@ -127,6 +133,9 @@ def import_data(datadir):
                 counts = pd.to_numeric(df[count_col])
                 hours = convert_hour(df[hour_col])  # Hours can come in different forms
                 locs = df[loc_col]
+                brcweek = pd.to_numeric(df[BRCWeek_col], downcast='integer')
+                brcmonth = df[BRCMonth_col]
+                brcyear = pd.to_numeric(df[BRCYear_col], downcast='integer')
 
                 # Strip whitespace from the locations
                 locs = locs.apply(lambda row: row.strip())
@@ -140,7 +149,7 @@ def import_data(datadir):
 
                 # df.apply(lambda x: x[date_col].replace(hour = x[hour_col]), axis=1)
 
-                if False in [len(df) == len(x) for x in [dates, counts, hours, locs, dt]]:
+                if False in [len(df) == len(x) for x in [dates, counts, hours, locs, dt, brcyear, brcmonth, brcweek]]:
                     raise Exception("One of the dataframe columns does not have enough values")
                 total_rows += len(df)
 
@@ -148,7 +157,8 @@ def import_data(datadir):
                 # Note that consistent column names (defined above) are used
                 frames.append(pd.DataFrame(data=
                                            {"Location": locs, "Date": dates, "Hour": hours,
-                                            "Count": counts, "DateTime": dt, "FileName": fnames}))
+                                            "Count": counts, "DateTime": dt, "BRCWeekNum": brcweek,
+                                            "BRCMonth": brcmonth, "BRCYear": brcyear, "FileName": fnames}))
 
             except Exception as e:
                 print("Caught exception on file {}".format(filename))
@@ -162,6 +172,20 @@ def import_data(datadir):
 
     footfall_data = template.append(merged_frames)
     return footfall_data
+
+def create_BRC_MonthNum(dataf):
+    conditions = [
+        dataf['BRCMonth'] == "January",dataf['BRCMonth'] == "February",dataf['BRCMonth'] == "March",
+        dataf['BRCMonth'] == "April",dataf['BRCMonth'] == "May",dataf['BRCMonth'] == "June",
+        dataf['BRCMonth'] == "July",dataf['BRCMonth'] == "August",dataf['BRCMonth'] == "September",
+        dataf['BRCMonth'] == "October",dataf['BRCMonth'] == "November",dataf['BRCMonth'] == "December"
+    ]
+
+    outputs = [i for i in range(1, 13)]
+
+    dataf['BRCMonthNum'] = np.select(conditions, outputs)
+
+    return dataf
 
 
 def check_remove_dup(dataf):
@@ -183,15 +207,138 @@ def check_remove_dup(dataf):
     return ffd_no_dup
 
 
-def combine_cameras(dataf):
+def time_dico():
+    time_dico = {
+        "interval": ["hours", "day", "week", "month", "year"],
+        "code": ["%H", "%a", "%W", "%b", "%y"],
+        "freq": ["H", "D", "W", "MS", "Y"]
+    }
+    return time_dico
 
+
+def resample_day(data):
+
+    data = data.resample("D").sum()
+    data['weekday'] = data.index.dayofweek
+    data['weekdayname'] = data.index.day_name()
+    data = data.groupby(['weekday', 'weekdayname'])['Count'].agg(['sum', 'mean']).droplevel(level=0)
+
+    return data
+
+
+def resample_week(data):
+
+    data = data.groupby(['BRCWeekNum'])['Count'].sum()
+
+    return data
+
+
+def resample_month(data):
+
+    data = data.groupby(['BRCMonth'])['Count'].sum()
+
+    return data
+
+
+def resample_year(data):
+
+    data = data.groupby(['BRCYear'])['Count'].sum()
+
+    return data
+
+
+def invalid_op(data):
+    raise Exception("Invalid Time Frequency - Needs either 'day', 'week', 'month' or 'year'.")
+
+
+#def mean_hourly(dataf, freq, *year):
+#    if freq == "month":
+ #       dataf = dataf.set_index('DateTime').groupby(
+  #          [pd.Grouper(level="DateTime",
+   #                     freq="MS")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
+    #elif freq == "week":
+     #   dataf = dataf.set_index('DateTime').groupby(
+      #      [pd.Grouper(level="DateTime",
+       #                 freq="W")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
+    #elif freq == "day":
+     #   dataf = dataf.set_index('DateTime').groupby(
+      #      [pd.Grouper(level="DateTime",
+       #                 freq="D")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
+
+   # if year:
+    #    dataf = dataf.loc[dataf['BRCYear'] == year]
+
+    #return dataf
+
+
+def mean_hourly(dataf, freq, *year):
+
+    if year:
+        dataf = dataf.loc[dataf.BRCYear == year]
+
+    if freq == "day":
+        dataf = dataf.groupby([
+            pd.Grouper(key="DateTime",freq="D"),'BRCWeekNum','BRCMonth'])['Count'].aggregate(np.mean)
+    elif freq == "month":
+        dataf = dataf.groupby(
+            ['BRCMonthNum',pd.Grouper(key="BRCMonth"),'BRCYear'])['Count'].aggregate(np.mean).reset_index()
+    elif freq == "week":
+        dataf = dataf.set_index('DateTime').groupby(
+            [pd.Grouper(key="BRCWeekNum")])['Count'].aggregate(np.mean)
+    elif freq == "year":
+        dataf = dataf.set_index('DateTime').groupby(
+            [pd.Grouper(key="BRCYear")])['Count'].aggregate(np.mean)
+
+    return dataf
+
+def reset_df_index(dataf):
+    dataf = dataf.reset_index()
+    return dataf
+
+def set_dt_index(dataf):
+    dataf = dataf.set_index('DateTime')
+
+    return dataf
+
+def date_range(dataf,startdate,enddate):
+
+    dataf = dataf.set_index('DateTime')
+    dataf = dataf[(dataf.index >= startdate) & (dataf.index <= enddate)]
+
+    return dataf
+
+def per_change(dataf,freq):
+
+    dataf[f'{freq}_per_change'] = dataf.Count.pct_change() * 100
+
+    return dataf
+
+def create_sum_df(data, time, year):
+    freq = {
+        "day": resample_day,
+        "week": resample_week,
+        "month": resample_month,
+        "year": resample_year
+    }
+
+    data = data.set_index('DateTime')
+
+    if year != "none":
+        data = data.loc[data.BRCYear == year]
+
+    resample_function = freq.get(time, invalid_op)
+
+    return resample_function(data)
+
+
+def combine_cameras(dataf):
     cameras_to_combine = dataf.loc[dataf.Location.isin(["Commercial Street at Lush",
-                                                      "Commercial Street at Sharps"])]
+                                                        "Commercial Street at Sharps"])]
 
     total_when_seperate = sum(cameras_to_combine['Count'])
 
     dataf = dataf.replace({'Location': {'Commercial Street at Lush': 'Commercial Street Combined',
-                                      'Commercial Street at Sharps': 'Commercial Street Combined'}})
+                                        'Commercial Street at Sharps': 'Commercial Street Combined'}})
 
     total_combined = sum(dataf.loc[dataf.Location == "Commercial Street Combined", "Count"])
 
@@ -207,5 +354,3 @@ def set_start_date(dataf):
     dataf = dataf.loc[dataf.DateTime >= '2008-08-27']
 
     return dataf
-
-
