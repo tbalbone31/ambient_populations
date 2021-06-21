@@ -5,7 +5,8 @@ import sys
 from bs4 import BeautifulSoup  # requirement beautifulsoup4
 from urllib.request import (
     urlopen, urlretrieve)
-
+import plotly.express as px
+import datetime
 
 def start_pipeline(dataf):
     return dataf.copy()
@@ -330,6 +331,28 @@ def create_sum_df(data, time, year):
 
     return resample_function(data)
 
+def chart_lockdown_dates(fig,vline_anno,vrec_anno):
+
+
+    for i, date in enumerate(vline_anno['date']):
+        fig.add_vline(
+            x=datetime.datetime.strptime(date, "%Y-%m-%d").timestamp() * 1000,
+            line_color="green", line_dash="dash",
+            annotation_position=vline_anno['position'][i],
+            annotation=dict(text=vline_anno['text'][i],
+                            font_size=10,
+                            textangle=vline_anno['textangle'][i],
+                            showarrow=vline_anno['showarrow'][i],
+                            arrowhead=1)
+        )
+
+    for i, x0 in enumerate(vrec_anno['x0']):
+        fig.add_vrect(
+            x0=datetime.datetime.strptime(x0, "%Y-%m-%d").timestamp() * 1000,
+            x1=datetime.datetime.strptime(vrec_anno['x1'][i], "%Y-%m-%d").timestamp() * 1000,
+            fillcolor=vrec_anno['fillcolor'][i], opacity=0.25, line_width=0)
+
+    return fig
 
 def combine_cameras(dataf):
     cameras_to_combine = dataf.loc[dataf.Location.isin(["Commercial Street at Lush",
