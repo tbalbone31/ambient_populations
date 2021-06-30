@@ -252,26 +252,6 @@ def invalid_op(data):
     raise Exception("Invalid Time Frequency - Needs either 'day', 'week', 'month' or 'year'.")
 
 
-#def mean_hourly(dataf, freq, *year):
-#    if freq == "month":
- #       dataf = dataf.set_index('DateTime').groupby(
-  #          [pd.Grouper(level="DateTime",
-   #                     freq="MS")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
-    #elif freq == "week":
-     #   dataf = dataf.set_index('DateTime').groupby(
-      #      [pd.Grouper(level="DateTime",
-       #                 freq="W")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
-    #elif freq == "day":
-     #   dataf = dataf.set_index('DateTime').groupby(
-      #      [pd.Grouper(level="DateTime",
-       #                 freq="D")]).aggregate(np.mean).rename(columns={'Count': 'Mean Hourly Footfall'})
-
-   # if year:
-    #    dataf = dataf.loc[dataf['BRCYear'] == year]
-
-    #return dataf
-
-
 def mean_hourly(dataf, freq):
 
     if freq == "day":
@@ -333,6 +313,45 @@ def create_sum_df(data, time, year):
     resample_function = freq.get(time, invalid_op)
 
     return resample_function(data)
+
+def mean_hourly_location(dataf,freq):
+
+    if freq == "day":
+        dataf = dataf.groupby(['Location',
+            pd.Grouper(key="DateTime",freq="D"),'BRCWeekNum','BRCMonth','BRCYear'])['Count'].aggregate(np.mean)
+    elif freq == "month":
+        dataf = dataf.groupby(
+            ['Location','BRCMonthNum',pd.Grouper(key="BRCMonth"),'BRCYear'])['Count'].aggregate(np.mean).reset_index()
+    elif freq == "week":
+        dataf = dataf.set_index('DateTime').groupby(
+            ['Location',pd.Grouper(key="BRCWeekNum")])['Count'].aggregate(np.mean)
+    elif freq == "year":
+        dataf = dataf.set_index('DateTime').groupby(
+            ['Location',pd.Grouper(key="BRCYear")])['Count'].aggregate(np.mean)
+
+    return dataf
+
+def set_lockdown_timeframe(dataf):
+    dataf = dataf.loc[(dataf.BRCYear == 2020) | (dataf.BRCYear == 2021)]
+
+    return dataf
+
+def calculate_baseline(dataf):
+
+    dataf['Day_Name'] = dataf.index.day_name()
+
+    baseline = (dataf
+                .pipe(start_pipeline)
+                .pipe(date_range, "2020-01-03", "2020-03-05"))
+
+    baseline = baseline.groupby([pd.Grouper(key="Day_Name")])['Count'].aggregate(np.median)
+
+    dataf = dataf.loc[dataf.DateTime > "2020-03-05"].set_index('DateTime')
+    dataf['baseline'] = dataf.Day_Name.map(baseline.to_dict())
+    dataf['baseline_change'] = dataf.Count - dataf.baseline
+    dataf['baseline_per_change'] = (dataf.baseline_change / dataf.baseline)
+
+    return dataf
 
 def chart_lockdown_dates(fig):
     # Create a dictionary of annotation parameters for the Plotly vertical lines
