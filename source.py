@@ -286,7 +286,6 @@ def set_dt_index(dataf):
 
 def date_range(dataf,startdate,enddate):
 
-    dataf = dataf.set_index('DateTime')
     dataf = dataf[(dataf.index >= startdate) & (dataf.index <= enddate)]
 
     return dataf
@@ -340,16 +339,20 @@ def calculate_baseline(dataf):
 
     dataf['Day_Name'] = dataf.index.day_name()
 
+    dataf = dataf.groupby([pd.Grouper(level='DateTime', freq="D"), 'Day_Name'])[
+        'Count'].sum().reset_index()
+    dataf = dataf.set_index('DateTime')
+
     baseline = (dataf
                 .pipe(start_pipeline)
                 .pipe(date_range, "2020-01-03", "2020-03-05"))
 
     baseline = baseline.groupby([pd.Grouper(key="Day_Name")])['Count'].aggregate(np.median)
 
-    dataf = dataf.loc[dataf.DateTime > "2020-03-05"].set_index('DateTime')
-    dataf['baseline'] = dataf.Day_Name.map(baseline.to_dict())
-    dataf['baseline_change'] = dataf.Count - dataf.baseline
-    dataf['baseline_per_change'] = (dataf.baseline_change / dataf.baseline)
+    dataf = dataf.loc[dataf.index > "2020-03-05"]
+    dataf.loc[:, 'baseline'] = dataf.Day_Name.map(baseline.to_dict())
+    dataf.loc[:, 'baseline_change'] = dataf.Count - dataf.baseline
+    dataf.loc[:, 'baseline_per_change'] = (dataf.baseline_change / dataf.baseline)
 
     return dataf
 
