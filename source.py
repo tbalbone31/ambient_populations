@@ -360,14 +360,15 @@ def chart_lockdown_dates(fig):
     # Create a dictionary of annotation parameters for the Plotly vertical lines
     vline_anno = {"date": ['2020-03-16',
                            '2020-03-23',
-                           '2020-05-10',
                            '2020-06-01',
                            '2020-06-15',
-                           '2020-10-14',
-                           '2020-11-05',
-                           '2020-09-22',
-                           '2020-12-02',
+                           '2020-07-04',
                            '2020-08-03',
+                           '2020-09-22',
+                           '2020-10-14',
+                           '2020-11-02',
+                           '2020-11-05',
+                           '2020-12-02',
                            '2021-01-05',
                            '2021-03-08',
                            '2021-03-29',
@@ -375,24 +376,24 @@ def chart_lockdown_dates(fig):
 
                   "text": ["16th Mar",
                            "23rd Mar",
-                           "10th <br> May",
                            "1st Jun",
                            "15th <br> Jun",
+                           '4th July',
+                           '3rd <br> Aug',
                            '14th Oct',
                            '5th <br> Nov',
                            '22nd <br> Sept',
                            '2nd <br> Dec',
-                           '3rd <br> Aug',
-                           '2nd <br> Jan',
+                           '5th <br> Jan',
                            '8th <br> Mar',
                            '29th Mar',
-                           '12th <br> Apr'],
+                           '12th <br> Apr',
+                           '2nd <br> November'],
 
-                  "textangle": [0, -90, 0, -90, 0, -90, 0, 0, 0, 0, 0, 0, -90, 0],
-                  "position": ["top", "right", "top", "left", "top", "left", "top", "top", "top", "top", "top", "top",
-                               "left", "top"],
-                  "showarrow": [True, False, False, False, False, False, False, False, False, False, False, False,
-                                False, False]
+                  "text2" : ['(1)','(2)','(3)','(4)','(5)','(6)','(7)','(8)','(9)','(10)','(11)','(12)','(13)','(14)','(15)'],
+
+                  "showarrow": [True, False, False, False, False, False, False, False, True, False, False, False,
+                                False, True,False]
                   }
     # Create a dictionary of annotation parameters for the Plotly vertical rectangles
     vrec_anno = {"x0": ['2020-03-23', '2020-06-15', '2020-11-05', '2020-12-02', '2021-01-05', '2021-03-29'],
@@ -404,10 +405,10 @@ def chart_lockdown_dates(fig):
         fig.add_vline(
             x=datetime.datetime.strptime(date, "%Y-%m-%d").timestamp() * 1000,
             line_color="green", line_dash="dash",
-            annotation_position=vline_anno['position'][i],
-            annotation=dict(text=vline_anno['text'][i],
-                            font_size=10,
-                            textangle=vline_anno['textangle'][i],
+            annotation_position="top",
+            annotation=dict(text=vline_anno['text2'][i],
+                            font_size=8,
+                            textangle=0,
                             showarrow=vline_anno['showarrow'][i],
                             arrowhead=1)
         )
