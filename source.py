@@ -55,7 +55,7 @@ def csv_check(soup):
                 continue
 
             # Save the csv file (unless it already exists already)
-            full_path = os.path.join("./data/lcc_footfall", filename)
+            full_path = os.path.join("data/lcc_footfall", filename)
             if os.path.isfile(full_path):
                 continue
             else:
@@ -77,7 +77,7 @@ def download_data(datadir):
     if not os.path.isdir(datadir):
         os.makedirs(datadir)
 
-    # Connect to the Data Mill North page and parse the html
+    # Connect to the data Mill North page and parse the html
     root = 'https://datamillnorth.org/dataset/leeds-city-centre-footfall-data'
     soup = BeautifulSoup(urlopen(root), 'html.parser')
 
