@@ -352,7 +352,7 @@ def calculate_baseline(dataf):
     dataf = dataf.loc[dataf.index > "2020-03-05"]
     dataf.loc[:, 'baseline'] = dataf.Day_Name.map(baseline.to_dict())
     dataf.loc[:, 'baseline_change'] = dataf.Count - dataf.baseline
-    dataf.loc[:, 'baseline_per_change'] = (dataf.baseline_change / dataf.baseline)
+    dataf.loc[:, 'baseline_per_change'] = (dataf.baseline_change / dataf.baseline) * 100
 
     return dataf
 
