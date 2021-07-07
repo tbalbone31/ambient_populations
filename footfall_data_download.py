@@ -20,4 +20,5 @@ download_data(data_dir)
 #import data and output to a merged csv
 footfalldf_imported = import_data(data_dir)
 print(footfalldf_imported.dtypes)
-footfalldf_imported.to_csv("./data/footfall_merged.csv",index=False)
+#footfalldf_imported.to_csv("./data/footfall_merged.csv",index=False)
+footfalldf_imported.to_csv("data/footfall_merged.csv.gz",compression="gzip")
