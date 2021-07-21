@@ -19,6 +19,30 @@ download_data(data_dir)
 
 #import data and output to a merged csv
 footfalldf_imported = import_data(data_dir)
-print(footfalldf_imported.dtypes)
-#footfalldf_imported.to_csv("./data/footfall_merged.csv",index=False)
+
+importlist = ['Monthly%20Data%20Feed-April%202017%20-%2020170510.csv',
+            'Copy%20of%20Monthly%20Data%20Feed-November%202016%20-%2020161221.csv']
+
+
+
+for file in importlist:
+    df = pd.read_csv(f"data/lcc_footfall/{file}",
+                                  parse_dates=['Date'],
+                                  #dtype={"BRCYear": int,"BRCWeekNum":int},
+                                  index_col=[0])
+
+    df = df.rename(columns={'BRCWeek':'BRCWeekNum','DayOfWeek':'DayName','BRCMonthName':'BRCMonth','InCount':'Count'})
+    df = df.dropna(subset=['Hour'])
+    df['FileName'] = file
+    df['Hour'] = convert_hour(df['Hour'])
+    df['Hour'] = df['Hour'].astype(int)
+    df['DateTime'] = pd.to_datetime(pd.Series(data=[date.replace(hour=hour) for date,hour in zip(df.Date,df.Hour)]))
+    footfalldf_imported = pd.concat([footfalldf_imported,df])
+
+
+footfalldf_imported = footfalldf_imported.loc[:,'Location':'BRCYear']
+
+
+footfalldf_imported.to_csv("data/footfall_merged.csv",index=False)
 footfalldf_imported.to_csv("data/footfall_merged.csv.gz",compression="gzip")
+

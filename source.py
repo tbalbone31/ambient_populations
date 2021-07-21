@@ -17,9 +17,12 @@ def convert_hour(series):
     integers or in the format '03:00:00' and returns them as integers"""
 
     # If it's a number then just return it
-    if isinstance(series.values[0], np.int64) or isinstance(series.values[0], np.float64) or isinstance(
-            series.values[0], float):
+    if isinstance(series.values[0], np.int64):
         return series
+
+    if isinstance(series.values[0], np.float64) or isinstance(
+            series.values[0], float):
+        return series.astype(dtype=int)
 
     # If it's a string see if it can be made into a number
     try:
@@ -126,7 +129,7 @@ def import_data(datadir):
                         bad_cols.append(x)
                 if len(bad_cols) > 0:
                     failures.append(filename)
-                    print(f"File {filename} has nans in the following columns: '{str(bad_cols)}'. Ignoring it")
+                    print(f"File {filename} has nans in the following columns: '{str(bad_cols)}'. Ignoring at initial pass, check data download script for additional processing")
                     continue
 
                 # Create Series' that will represent each column
@@ -205,7 +208,10 @@ def check_remove_dup(dataf):
         unq_loc_datetime = ffd_no_dup.groupby(
             ['Location', 'DateTime']).size().reset_index().rename(columns={0: 'UniqueRowsCount'})
         print(f"There are {len(unq_loc_datetime[unq_loc_datetime.UniqueRowsCount > 1])} duplicates left")
-    return ffd_no_dup
+        return ffd_no_dup
+    else:
+        return dataf
+
 
 
 def time_dico():
