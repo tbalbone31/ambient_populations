@@ -116,4 +116,4 @@ if total_rows != len(merged_frames):
 
 weatherdata = template.append(merged_frames)
 
-weatherdata.to_csv("./data/weatherdata.csv",index=False)
+weatherdata.to_csv("data/weatherdata.csv",index=False)

@@ -28,9 +28,9 @@ importlist = ['Monthly%20Data%20Feed-April%202017%20-%2020170510.csv',
 
 for file in importlist:
     df = pd.read_csv(f"data/lcc_footfall/{file}",
-                                  parse_dates=['Date'],
-                                  #dtype={"BRCYear": int,"BRCWeekNum":int},
-                                  index_col=[0])
+                     parse_dates=['Date'],
+                     #dtype={"BRCYear": int,"BRCWeekNum":int},
+                     index_col=[0])
 
     df = df.rename(columns={'BRCWeek':'BRCWeekNum','DayOfWeek':'DayName','BRCMonthName':'BRCMonth','InCount':'Count'})
     df = df.dropna(subset=['Hour'])
