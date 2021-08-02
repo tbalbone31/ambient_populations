@@ -794,7 +794,7 @@ def eat_out(dataf):
     return dataf
 
 
-def create_lockdown_var(dataf):
+def create_lockdown_predictors(dataf):
 
     lockdown_var_list = [hosp_indoor,
                          hosp_outdoor,
