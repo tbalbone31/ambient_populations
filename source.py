@@ -380,22 +380,6 @@ def chart_lockdown_dates(fig):
                            '2021-03-29',
                            '2021-04-12'],
 
-                  "text": ["16th Mar",
-                           "23rd Mar",
-                           "1st Jun",
-                           "15th <br> Jun",
-                           '4th July',
-                           '3rd <br> Aug',
-                           '14th Oct',
-                           '5th <br> Nov',
-                           '22nd <br> Sept',
-                           '2nd <br> Dec',
-                           '5th <br> Jan',
-                           '8th <br> Mar',
-                           '29th Mar',
-                           '12th <br> Apr',
-                           '2nd <br> November'],
-
                   "text2" : ['(1)','(2)','(3)','(4)','(5)','(6)','(7)','(8)','(9)','(10)','(11)','(12)','(13)','(14)','(15)'],
 
                   "showarrow": [True, False, False, False, False, False, False, False, True, False, False, False,
