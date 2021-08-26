@@ -1,11 +1,19 @@
 import pandas as pd
 import numpy as np
+from numpy import asarray
 import os, os.path
 import sys
 from urllib.request import (
     urlopen, urlretrieve)
 import plotly.express as px
 import datetime
+from sklearn.metrics import mean_absolute_error
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import MinMaxScaler
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+min_max_scaler = MinMaxScaler()
 
 def start_pipeline(dataf):
     return dataf.copy()
@@ -636,3 +644,324 @@ def create_lockdown_predictors(dataf):
         dataf = func(dataf)
 
     return dataf
+
+def validation_plot(y,yhat):
+    # plot expected vs predicted
+    fig = make_subplots()
+    # Add traces
+    fig.add_trace(
+        go.Scatter(x=pd.Series(y).index, y=pd.Series(y), name="Expected",mode='lines',hovertemplate='%{y}'),
+    )
+    fig.add_trace(
+        go.Scatter(x=pd.Series(y).index, y=pd.Series(yhat), name="Predicted",mode='lines',hovertemplate='%{y}'),
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="Time Series (Day)")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="Daily Footfall")
+
+    return fig
+
+def movecol(df, cols_to_move=[], ref_col='', place='After'):
+
+    cols = df.columns.tolist()
+    if place == 'After':
+        seg1 = cols[:list(cols).index(ref_col) + 1]
+        seg2 = cols_to_move
+    if place == 'Before':
+        seg1 = cols[:list(cols).index(ref_col)]
+        seg2 = cols_to_move + [ref_col]
+
+    seg1 = [i for i in seg1 if i not in seg2]
+    seg3 = [i for i in cols if i not in seg1 + seg2]
+
+    return(df[seg1 + seg2 + seg3])
+
+# Function to process date and recreate it in a different format
+def create_date_format (col, old_time_format, new_time_format):
+    col = pd.to_datetime(col, format = old_time_format )
+    if type(col) == pd.core.series.Series:
+        col = col.apply(lambda x: x.strftime(new_time_format))
+    elif type(col) ==  pd.tslib.Timestamp:
+        col = col.strftime(new_time_format)
+    return col
+
+def create_weather_predictors(dataf,new_weather,previous_weather):
+    """Create weather dataset and normalise values across the same range.
+
+    PARAMETERS:
+      - weather 1 is a pandas dataframe containing combined weather data from the NCAS archive from 01/04/2017.
+      - weather 2 is a pandas dataframe containing weather data from a previous intern project up to 31/03/2017.
+    """
+
+    new_weather = new_weather.loc[new_weather.index >'2017-03-31']
+    new_weather = new_weather.resample("D").agg({'temp_°C':'mean',
+                                                'rain_mm': 'sum',
+                                                "wind_ms¯¹": 'mean'})
+    new_weather = new_weather.rename(columns={'temp_°C':'mean_temp',
+                                                'rain_mm': 'rain',
+                                                "wind_ms¯¹": 'wind_speed'})
+    previous_weather = previous_weather.drop(['abnormal_rain','high_temp',	'low_temp','high_wind'],axis=1)
+
+    comb_weather = pd.concat([previous_weather,new_weather])
+
+    #Either interpolate missing data or drop.  Decide after consultations.
+    #comb_weather = comb_weather.interpolate(method='time')
+    comb_weather = comb_weather.dropna()
+
+    dataf = dataf.merge(comb_weather,how='left',left_on=dataf.index,right_on=comb_weather.index).set_index('key_0')
+
+    return dataf
+
+
+def create_date_predictors(dataf):
+
+    #dataf['year'] = pd.DatetimeIndex(dataf.index).year
+    dataf['month'] = pd.DatetimeIndex(dataf.index).month_name()
+    dataf['dayofweek'] = pd.DatetimeIndex(dataf.index).day_name()
+
+    #dataf = pd.get_dummies(dataf, columns=['year'], drop_first=True, prefix='year')
+    dataf = pd.get_dummies(dataf, columns=['month'], drop_first=True, prefix='month')
+    dataf = pd.get_dummies(dataf, columns=['dayofweek'], drop_first=True, prefix='wday')
+
+    return dataf
+
+def create_holiday_predictors(dataf,bankholdf,schooltermdf):
+    bankholdf['bank_hols'] = 1
+
+    schooltermdf['schoolholidays'] = np.where(schooltermdf['schoolStatus']=='Close',1,0)
+    schooltermdf = schooltermdf.loc[schooltermdf.index >= '2008'].sort_index()
+    schooltermdf = schooltermdf.asfreq('D')
+    schooltermdf.ffill(inplace=True)
+
+    dataf = dataf.merge(bankholdf, left_on=dataf.index,right_on='ukbankhols',how='left')
+    dataf = dataf.set_index('ukbankhols')
+    dataf.bank_hols = dataf.bank_hols.fillna(0)
+
+    dataf = dataf.merge(schooltermdf,how='left',left_on=dataf.index,right_on=schooltermdf.index).set_index('key_0').drop(['schoolStatus'],axis=1)
+
+    return dataf
+
+#The following workflow performs some data management to account for the dataframe requiring transformation into a numpy array to work with the walk forward validation code
+def arrange_cols(dataf,n_in):
+#Extract columns that need moving for walk forward validation later
+    #cols_to_move = [col for col in dataf.iloc[:,0:7]] DEPRECATED, MAY NEED IN FutureWarning
+    cols_to_move = []
+    n_in = n_in+1
+    for i in range(1,n_in):
+        cols_to_move.append(f'var1(t-{i})')
+
+    cols_to_move.append('var1(t)')
+    #Identify reference column as last column
+    ref_col = [col for col in dataf.iloc[:,-1:]][0]
+
+    #Calls a function that moves specified columns to the end of the dataframe.
+    dataf = movecol(dataf,
+                 cols_to_move=cols_to_move,
+                 ref_col=ref_col,
+                 place='After')
+
+    return dataf
+
+def drop_na(dataf):
+
+    dataf = dataf.dropna()
+
+    return dataf
+
+# transform a time series dataset into a supervised learning dataset
+def series_to_supervised(data, n_in=1, n_out=1, dropnan=True):
+    n_vars = 1 if type(data) is list else data.shape[1]
+    df = pd.DataFrame(data)
+    cols,names = list(),list()
+    # input sequence (t-n, ... t-1)
+    for i in range(n_in, 0, -1):
+        cols.append(df.shift(i))
+        names += [('var%d(t-%d)' % (j+1, i)) for j in range(n_vars)]
+    # forecast sequence (t, t+1, ... t+n)
+    for i in range(0, n_out):
+        cols.append(df.shift(-i))
+        if i == 0:
+            names += [('var%d(t)' % (j+1)) for j in range(n_vars)]
+        else:
+            names += [('var%d(t+%d)' % (j+1, i)) for j in range(n_vars)]
+    # put it all together
+    agg = pd.concat(cols, axis=1)
+    agg.columns = names
+    # drop rows with NaN values
+    if dropnan:
+        agg.dropna(inplace=True)
+    return agg
+
+# split a univariate dataset into train/test sets
+def train_test_split(data, n_test):
+    return data.iloc[:-n_test, :].copy(), data.iloc[-n_test:, :].copy()
+
+# fit an random forest model and make a one step prediction
+def random_forest_forecast(train, testX,tree):
+    # transform list into array
+    train = asarray(train)
+    # split into input and output columns
+    trainX, trainy = train[:, :-1], train[:, -1]
+    # fit model
+    model = RandomForestRegressor(n_estimators=tree)
+    model.fit(trainX, trainy)
+    # make a one-step prediction
+    yhat = model.predict([testX])
+    return yhat[0]
+
+# walk-forward validation for univariate data - NEEDS SOME WORK TO ADAPT FOR REFITTING SCALING TO TRAINING DATA AND APPLYING TO TEST
+def walk_forward_validation(data, n_test, scalecols,n_in,tree):
+    print(f'Validation has started on {tree} trees with {n_in} time lag(s).  Please be patient, it may take a while and a message will be displayed when finished.')
+    predictions = list()
+
+    # split dataset
+    train, test = train_test_split(data, n_test)
+    #scale numerical data
+    train.loc[:,scalecols] = min_max_scaler.fit_transform(train.loc[:,scalecols])
+    test.loc[:,scalecols] = min_max_scaler.transform(test.loc[:,scalecols])
+    #rearrange columns and record variable names in a dictionary
+    train, test = arrange_cols(train,n_in), arrange_cols(test,n_in)
+    #convert dataframes to numpy arrays
+    train, test = train.values, test.values
+    # seed history with training dataset
+    history = [x for x in train]
+    # step over each time-step in the test set
+    for i in range(len(test)):
+        # split test row into input and output columns
+        testX, testy = test[i, :-1], test[i, -1]
+        # fit model on history and make a prediction
+        yhat = random_forest_forecast(history, testX,tree)
+        # store forecast in list of predictions
+        predictions.append(yhat)
+        # add actual observation to history for the next loop
+        history.append(test[i])
+        # summarize progress
+        #print(i,'>expected=%.1f, predicted=%.1f' % (testy, yhat))
+    # estimate prediction error
+    error = mean_absolute_error(test[:, -1], predictions)
+    return error, test[:, -1], predictions
+
+def create_prediction_data(yhatdf,test):
+    yhatdf = pd.DataFrame(yhatdf)
+    test = test.reset_index()
+
+    yhatdf['datetime'] = test['key_0']
+    yhatdf = yhatdf.set_index('datetime').rename(columns={0:'predicted'})
+    yhatdf['roll_7_mean'] = yhatdf['predicted'].rolling(7).mean()
+
+    return yhatdf
+
+def daily_predicted_chart(yhat_list,finaldata):
+    finaldata = finaldata.loc[finaldata.index >= '2018']
+    fig = make_subplots()
+
+    # Add traces
+    fig.add_trace(
+        go.Scatter(x=finaldata.index, y=finaldata['roll_7_mean'], name="Observed"),
+    )
+
+    fig.add_trace(
+        go.Scatter(x=yhat_list[0].index, y=yhat_list[0]['roll_7_mean'], name="Predicted_1_lag"),
+    )
+
+    fig.add_trace(
+        go.Scatter(x=yhat_list[1].index, y=yhat_list[1]['roll_7_mean'], name="Predicted_3_lag"),
+    )
+
+    fig.add_trace(
+        go.Scatter(x=yhat_list[2].index, y=yhat_list[2]['roll_7_mean'], name="Predicted_7_lag"),
+    )
+
+    # Add figure title
+    fig.update_layout(
+        title_text="Rolling 7 day mean predictions"
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="DateTime")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="Footfall")
+
+    return fig
+
+def weekly_predicted_chart(yhat_dataf,finaldata):
+    finaldata = finaldata.loc[finaldata.index >= '2018']
+    finaldata = finaldata.resample('W').agg({'var1(t)':'sum'})
+    yhat_dataf = yhat_dataf.resample('W').agg({'predicted':'sum'})
+    # Create figure with secondary y-axis
+    fig = make_subplots()
+
+    # Add traces
+    fig.add_trace(
+        go.Scatter(x=finaldata.index, y=finaldata['var1(t)'], name="yaxis data", connectgaps=False),
+    )
+
+    fig.add_trace(
+        go.Scatter(x=yhat_dataf.index, y=yhat_dataf['predicted'], name="yaxis2 data",connectgaps=False),
+    )
+
+    # Add figure title
+    fig.update_layout(
+        title_text="Double Y Axis Example"
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="xaxis title")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="<b>primary</b> yaxis title", secondary_y=False)
+    fig.update_yaxes(title_text="<b>secondary</b> yaxis title", secondary_y=True)
+
+    return fig
+
+def monthly_predicted_chart(yhat_dataf,finaldata):
+    finaldata = finaldata.loc[finaldata.index >= '2019']
+    finaldata = finaldata.resample('M').agg({'var1(t)':'sum'})
+    yhat_dataf = yhat_dataf.resample('M').agg({'predicted':'sum'})
+    # Create figure with secondary y-axis
+    fig = make_subplots()
+
+    # Add traces
+    fig.add_trace(
+        go.Scatter(x=finaldata.index, y=finaldata['var1(t)'], name="yaxis data", connectgaps=False),
+    )
+
+    fig.add_trace(
+        go.Scatter(x=yhat_dataf.index, y=yhat_dataf['predicted'], name="yaxis2 data",connectgaps=False),
+    )
+
+    # Add figure title
+    fig.update_layout(
+        title_text="Double Y Axis Example"
+    )
+
+    # Set x-axis title
+    fig.update_xaxes(title_text="xaxis title")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text="<b>primary</b> yaxis title", secondary_y=False)
+    fig.update_yaxes(title_text="<b>secondary</b> yaxis title", secondary_y=True)
+
+    return fig
+
+def create_data_cols(dataf):
+    data_cols = [col for col in dataf] #List containing column names from daily dataframe
+    data_col_keys = list(range(len(data_cols))) # List containing integer positions of dataframe columns
+
+    #Creates a dictionary of column names with integer keys representing position
+    data_col_dict = dict(zip(data_col_keys, data_cols))
+
+    return data_col_keys, data_cols
+
+
+def create_importance_df(feature_import,datacols,lag):
+    importance = pd.DataFrame(feature_import)
+    importance['feature_name'] = datacols[:-1]
+    importance = importance.set_index('feature_name')
+    importance = importance.rename(columns={0:f'feat_importance_lag{lag}'}).sort_values(by=f'feat_importance_lag{lag}',ascending=False)
+
+    return importance
