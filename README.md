@@ -14,4 +14,5 @@ The notebooks require source.py and data/LCC_footfall_2021.gz to run correctly.
 There are several .py scripts in the root folder that undertake a number of functions:
 
 - source.py contains a lot of custom functions called by the analysis notebooks.
-- footfall_data_download.py
+- footfall_data_download.py downloads the footfall data from Data Mill North, merges it together and creates a raw and cleaned dataset
+- weather_download.py downloads weather data from University of Leeds station
