@@ -8,6 +8,7 @@ from urllib.request import (
 import plotly.express as px
 import datetime
 from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import MinMaxScaler
 import plotly.graph_objects as go
@@ -16,10 +17,24 @@ from plotly.subplots import make_subplots
 min_max_scaler = MinMaxScaler()
 
 def start_pipeline(dataf):
+    """Create a copy of dataset ready for the start of a processing pipeline.
+
+    VALUE: return a copy of a dataframe
+
+    PARAMETERS:
+      - dataf is a Pandas Dataframe.
+    """
     return dataf.copy()
 
 
 def create_BRC_MonthNum(dataf):
+    """Create the relevant British Retail Consortium Month number from the Month name.
+
+    VALUE: return a Pandas dataframe with an extra 'BRCMonthNum' column
+
+    PARAMETERS:
+      - dataf is a Pandas Dataframe.
+    """
     conditions = [
         dataf['BRCMonth'] == "January",dataf['BRCMonth'] == "February",dataf['BRCMonth'] == "March",
         dataf['BRCMonth'] == "April",dataf['BRCMonth'] == "May",dataf['BRCMonth'] == "June",
@@ -35,6 +50,15 @@ def create_BRC_MonthNum(dataf):
 
 
 def check_remove_dup(dataf):
+
+    """Check for duplicate records and remove if necessary.
+
+    VALUE: return a copy of a dataframe
+
+    PARAMETERS:
+      - dataf is a Pandas Dataframe.
+    """
+
     # Groups footfall data by location and datetime, counting the number of occurrences by calling size.
     # Also Resets the index to restore the grouped columns and renames the size column to UniqueRowsCount
     unq_loc_datetime = dataf.groupby(
@@ -57,6 +81,11 @@ def check_remove_dup(dataf):
 
 
 def time_dico():
+    """Create a dictionary with time period codes and frequencies for various pandas functions.
+
+    VALUE: return a dictionary
+
+    """
     time_dico = {
         "interval": ["hours", "day", "week", "month", "year"],
         "code": ["%H", "%a", "%W", "%b", "%y"],
@@ -66,7 +95,13 @@ def time_dico():
 
 
 def resample_day(data):
+    """Resample a data frame to daily frequency.
 
+    VALUE: return an edited dataframe
+
+    PARAMETERS:
+      - data is a Pandas Dataframe.
+    """
     data = data.resample("D").sum()
     data['weekday'] = data.index.dayofweek
     data['weekdayname'] = data.index.day_name()
@@ -77,6 +112,14 @@ def resample_day(data):
 
 def resample_week(data):
 
+    """Resample a data frame to weekly frequency.
+
+     VALUE: return an edited dataframe
+
+     PARAMETERS:
+       - data is a Pandas Dataframe.
+     """
+
     data = data.groupby(['BRCWeekNum'])['Count'].sum()
 
     return data
@@ -84,12 +127,28 @@ def resample_week(data):
 
 def resample_month(data):
 
+    """Resample a data frame to monthly frequency.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - data is a Pandas Dataframe.
+         """
+
     data = data.groupby(['BRCMonth'])['Count'].sum()
 
     return data
 
 
 def resample_year(data):
+
+    """Resample a data frame to yearly frequency.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - data is a Pandas Dataframe.
+         """
 
     data = data.groupby(['BRCYear'])['Count'].sum()
 
@@ -101,6 +160,15 @@ def invalid_op(data):
 
 
 def mean_hourly(dataf, freq):
+
+    """Resample a data frame to a specified frequency.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe
+           - freq is the time frequency you'd like to resample to.
+         """
 
     if freq == "day":
         dataf = dataf.groupby([
@@ -119,20 +187,56 @@ def mean_hourly(dataf, freq):
 
 def remove_new_cameras(dataf):
 
+    """Remove new cameras that recently came online due to missing periods of time.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe.
+         """
+
     dataf.drop(dataf[ (dataf['Location'] == "Albion Street at McDonalds") & (dataf['Location'] == "Park Row")].index,inplace=True)
 
     return dataf
 
 def reset_df_index(dataf):
+
+    """Reset the index of a data frame.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe.
+         """
+
     dataf = dataf.reset_index()
     return dataf
 
 def set_dt_index(dataf):
+
+    """Set the index as DateTime.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe.
+         """
+
     dataf = dataf.set_index('DateTime')
 
     return dataf
 
 def date_range(dataf,startdate,enddate):
+
+    """Filter dataframe between two dates
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe.
+           - startdate is the earliest date you'd like the records to begin
+           - enddate is the latest date you'd like the records to begin
+         """
 
     dataf = dataf[(dataf.index >= startdate) & (dataf.index <= enddate)]
 
@@ -140,28 +244,30 @@ def date_range(dataf,startdate,enddate):
 
 def per_change(dataf,freq):
 
+    """Calculate percentage change of footfall.
+
+         VALUE: return an edited dataframe
+
+         PARAMETERS:
+           - dataf is a Pandas Dataframe
+           - freq is the time frequency you'd like to resample to.
+         """
+
     dataf[f'{freq}_per_change'] = dataf.Count.pct_change() * 100
 
     return dataf
 
-def create_sum_df(data, time, year):
-    freq = {
-        "day": resample_day,
-        "week": resample_week,
-        "month": resample_month,
-        "year": resample_year
-    }
-
-    data = data.set_index('DateTime')
-
-    if year != "none":
-        data = data.loc[data.BRCYear == year]
-
-    resample_function = freq.get(time, invalid_op)
-
-    return resample_function(data)
 
 def mean_hourly_location(dataf,freq):
+
+    """Create resampled dataframe aggregated by mean hourly footfall.
+
+           VALUE: return an edited dataframe
+
+           PARAMETERS:
+             - dataf is a Pandas Dataframe
+             - freq is the time frequency you'd like to resample to.
+           """
 
     if freq == "day":
         dataf = dataf.groupby(['Location',
@@ -179,24 +285,41 @@ def mean_hourly_location(dataf,freq):
     return dataf
 
 def set_lockdown_timeframe(dataf):
+    """Filters the dataframe to be 2020/2021
+
+           VALUE: return an edited dataframe
+
+           PARAMETERS:
+             - dataf is a Pandas Dataframe
+           """
     dataf = dataf.loc[(dataf.BRCYear == 2020) | (dataf.BRCYear == 2021)]
 
     return dataf
 
 def calculate_baseline(dataf):
 
+    """Calculate percentage change from a baseline of between 3rd January 2020 and 5th March 2020.
+
+           VALUE: return an edited dataframe
+
+           PARAMETERS:
+             - dataf is a Pandas Dataframe
+           """
+
+    #Extract the day name from DateTime index
     dataf['Day_Name'] = dataf.index.day_name()
 
-    dataf = dataf.groupby([pd.Grouper(level='DateTime', freq="D"), 'Day_Name'])[
-        'Count'].sum().reset_index()
+    #Resample to daily frequency and include the Day_Name variable, aggregating by the sum of footfall counts
+    dataf = dataf.groupby([pd.Grouper(level='DateTime', freq="D"), 'Day_Name'])['Count'].sum().reset_index()
     dataf = dataf.set_index('DateTime')
 
-    baseline = (dataf
-                .pipe(start_pipeline)
-                .pipe(date_range, "2020-01-03", "2020-03-05"))
+    #create a baseline dataframe and filter by a specific date range
+    baseline = dataf[(dataf.index >= "2020-01-03") & (dataf.index <= "2020-03-05")]
 
+    #Group by Day Name and calculate the median footfall for each day across the time period
     baseline = baseline.groupby([pd.Grouper(key="Day_Name")])['Count'].aggregate(np.median)
 
+    #Filter dataf and create baseline percentage change from median baseline calculations by mapping to a dictionary
     dataf = dataf.loc[dataf.index > "2020-03-05"]
     dataf.loc[:, 'baseline'] = dataf.Day_Name.map(baseline.to_dict())
     dataf.loc[:, 'baseline_change'] = dataf.Count - dataf.baseline
@@ -205,6 +328,15 @@ def calculate_baseline(dataf):
     return dataf
 
 def chart_lockdown_dates(fig):
+
+    """Adds chosen key lockdown dates to footfall chart as vertical lines and rectangles.
+
+           VALUE: a chart figure object
+
+           PARAMETERS:
+             - fig is a chart figure object
+           """
+
     # Create a dictionary of annotation parameters for the Plotly vertical lines
     vline_anno = {"date": ['2020-03-16',
                            '2020-03-23',
@@ -254,6 +386,15 @@ def chart_lockdown_dates(fig):
     return fig
 
 def combine_cameras(dataf):
+
+    """Rename cameras that have moved location to a combined label.
+
+           VALUE: return an edited dataframe
+
+           PARAMETERS:
+             - dataf is a Pandas Dataframe
+           """
+
     cameras_to_combine = dataf.loc[dataf.Location.isin(["Commercial Street at Lush",
                                                         "Commercial Street at Sharps"])]
 
@@ -841,8 +982,9 @@ def walk_forward_validation(data, n_test, scalecols,n_in,tree):
         # summarize progress
         #print(i,'>expected=%.1f, predicted=%.1f' % (testy, yhat))
     # estimate prediction error
-    error = mean_absolute_error(test[:, -1], predictions)
-    return error, test[:, -1], predictions
+    mae = mean_absolute_error(test[:, -1], predictions)
+    mse = mean_squared_error(test[:,-1], predictions)
+    return mae, mse, test[:, -1], predictions
 
 def create_prediction_data(yhatdf,test):
     yhatdf = pd.DataFrame(yhatdf)
@@ -965,3 +1107,60 @@ def create_importance_df(feature_import,datacols,lag):
     importance = importance.rename(columns={0:f'feat_importance_lag{lag}'}).sort_values(by=f'feat_importance_lag{lag}',ascending=False)
 
     return importance
+
+def doubleMADsfromMedian(y, thresh=3.5):
+    """Find outliers using the Median Average Distance.
+
+    VALUE: return a list of true/false denoting whether the element in y is an outlier or not
+
+    PARAMETERS:
+      - y is a pandas Series, or something like that.
+
+    warning: this function does not check for NAs
+    nor does it address issues when
+    more than 50% of your data have identical values
+    """
+    # Calculate the upper and lower limits
+    m = np.median(y)  # The median
+    abs_dev = np.abs(y - m)  # The absolute difference between each y and the median
+    # The upper and lower limits are the median of the difference
+    # of each data point from the median of the data
+    left_mad = np.median(abs_dev[y <= m])  # The left limit (median of lower half)
+    right_mad = np.median(abs_dev[y >= m])  # The right limit (median of upper half)
+
+    # Now create an array where each value has left_mad if it is in the lower half of the data,
+    # or right_mad if it is in the upper half
+    y_mad = left_mad * np.ones(len(y))  # Initially every value is 'left_mad'
+    y_mad[y > m] = right_mad  # Now larger values are right_mad
+
+    # Calculate the z scores for each element
+    modified_z_score = 0.6745 * abs_dev / y_mad
+    modified_z_score[y == m] = 0
+
+    # Return boolean list showing whether each y is an outlier
+    return modified_z_score > thresh
+
+def remove_outliers(dataf):
+
+    # Make a list of true/false for whether the footfall is an outlier
+    no_outliers = pd.DataFrame(doubleMADsfromMedian(dataf['Count']))
+    no_outliers.columns = ['outlier']  # Rename the column to 'outlier'
+
+    # Join to the original footfall data to the list of outliers, then select a few useful columns
+    join = pd.concat([dataf, no_outliers], axis=1)
+    join = pd.DataFrame(join, columns=['outlier', 'Count'])
+
+    # Choose just the outliers
+    outliers = join[join['outlier'] == True]
+    outliers_list = list(outliers.index)  # A list of the days that are outliers
+
+    # Now remove all outliers from the original data
+    df = dataf.loc[~dataf.index.isin(outliers_list)]
+
+    # Check that the lengths all make sense
+    assert (len(df) == len(dataf) - len(outliers_list))
+
+    print("I found {} outliers from {} days in total. Removing them leaves us with {} events".format(
+        len(outliers_list), len(join), len(df)))
+
+    return df
