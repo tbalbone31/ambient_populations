@@ -1,0 +1,5 @@
+name: amb_pop
+channels:
+  - https://conda.anaconda.org/conda-forge/
+  - defaults
+prefix: C:\Users\tbalb\.conda\envs\amb_pop

@@ -1006,15 +1006,7 @@ def daily_predicted_chart(yhat_list,finaldata):
     )
 
     fig.add_trace(
-        go.Scatter(x=yhat_list[0].index, y=yhat_list[0]['roll_7_mean'], name="Predicted_1_lag"),
-    )
-
-    fig.add_trace(
-        go.Scatter(x=yhat_list[1].index, y=yhat_list[1]['roll_7_mean'], name="Predicted_3_lag"),
-    )
-
-    fig.add_trace(
-        go.Scatter(x=yhat_list[2].index, y=yhat_list[2]['roll_7_mean'], name="Predicted_7_lag"),
+        go.Scatter(x=yhat_list[0].index, y=yhat_list[0]['roll_7_mean'], name="Predicted"),
     )
 
     # Add figure title
@@ -1023,12 +1015,59 @@ def daily_predicted_chart(yhat_list,finaldata):
     )
 
     # Set x-axis title
-    fig.update_xaxes(title_text="DateTime")
+    fig.update_xaxes(title_text="Date")
 
     # Set y-axes titles
     fig.update_yaxes(title_text="Footfall")
 
-    return fig
+    fig.update_layout(
+        title={
+            'y': 0.9,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'}
+    )
+
+
+    fig_comparison = make_subplots()
+    # Add traces
+    fig_comparison.add_trace(
+        go.Scatter(x=finaldata.index, y=finaldata['roll_7_mean'], name="Observed"),
+    )
+
+    fig_comparison.add_trace(
+        go.Scatter(x=yhat_list[0].index, y=yhat_list[0]['roll_7_mean'], name="Predicted_1_lag"),
+    )
+
+
+    fig_comparison.add_trace(
+        go.Scatter(x=yhat_list[1].index, y=yhat_list[1]['roll_7_mean'], name="Predicted_3_lag"),
+    )
+
+    fig_comparison.add_trace(
+        go.Scatter(x=yhat_list[2].index, y=yhat_list[2]['roll_7_mean'], name="Predicted_7_lag"),
+    )
+
+    # Add figure title
+    fig_comparison.update_layout(
+        title_text="Rolling 7 day mean predictions"
+    )
+
+    # Set x-axis title
+    fig_comparison.update_xaxes(title_text="DateTime")
+
+    # Set y-axes titles
+    fig_comparison.update_yaxes(title_text="Footfall")
+
+    fig_comparison.update_layout(
+        title={
+            'y': 0.9,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'}
+    )
+
+    return fig, fig_comparison
 
 def weekly_predicted_chart(yhat_dataf,finaldata):
     finaldata = finaldata.loc[finaldata.index >= '2018']
